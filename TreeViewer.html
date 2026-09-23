@@ -183,7 +183,7 @@ html.tv-static #tvSnapshot{display:block;padding:16px}
   <button id="toggleSidebar" class="small" title="Toggle side panel">&#9776;</button>
   <div class="brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h6M9 12V6h6M9 12v6h6M15 6h4M15 18h4M15 6v0"/></svg>Tree Viewer</div>
   <span id="fileName"></span>
-  <button id="privChip" class="privChip" type="button" title="Your tree stays on this device. It is read and drawn by this browser, never uploaded, and this page is blocked from sending data anywhere."><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>On this device only</span></button>
+  <button id="privChip" class="privChip" type="button" title="Your tree stays on your device. It is never uploaded or shared with anyone."><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>On this device only</span></button>
   <select id="treeSelect" title="Tree" style="display:none"></select>
   <div class="spacer"></div>
   <button id="savePdfBtn" class="small" title="Save the whole tree as a PDF, which opens on any phone including iPhone">Save PDF</button>
@@ -339,7 +339,7 @@ html.tv-static #tvSnapshot{display:block;padding:16px}
     <div class="hint">One self-contained file with this tree, its colors, metadata and settings. Recipients open it in any browser, desktop or phone. No install or internet needed.</div>
     <div class="row" style="margin-top:8px"><button id="shareLinkBtn" class="small" style="flex:1">Copy share link</button></div>
     <div class="row" id="viewerUrlRow"><span class="muted" style="width:90px">Viewer address</span><input type="text" id="viewerUrl" placeholder="https://…/TreeViewer.html" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
-    <div class="hint">A share link opens the full interactive viewer on any phone, including iPhone, where email and chat previews can't run it. Links open the viewer's public page; change the address only if you host your own copy. The tree travels inside the link itself; the web server never receives it. Saved HTML files also get an "Open interactive tree" button in their preview.</div>
+    <div class="hint">Share links open the full viewer on any phone, including iPhone. The tree is inside the link and is never uploaded. Saved HTML files also get an "Open interactive tree" button. Change the address above only if you host your own copy of the viewer.</div>
   </div>
 </details>
 
@@ -1285,7 +1285,7 @@ async function buildShareableHTML(){
   // static picture first in <body>, so previews without JavaScript still show the tree
   const nTips=leaves(S.root).length; const pic=snapshotSVG();
   body.insertAdjacentHTML('afterbegin', `<div id="tvSnapshot"><div class="snap-title">${esc(S.fileName||'Phylogenetic tree')}, ${nTips} tips</div>`+
-    (link ? `<p class="snap-note">This is a still picture. Tap the button to open the interactive tree in your browser, with zoom, search, rerooting and coloring.</p><a class="snap-link" href="${esc(link)}">Open interactive tree</a><p class="snap-private"><b>Private:</b> this button only loads the blank viewer from GitHub. Your tree travels in the part of the link after the #, which browsers never send to any server, and the viewer is blocked from sending data anywhere. Nothing is uploaded.</p>`
+    (link ? `<p class="snap-note">This is a still picture. Tap the button to open the interactive tree in your browser, with zoom, search, rerooting and coloring.</p><a class="snap-link" href="${esc(link)}">Open interactive tree</a><p class="snap-private"><b>Private:</b> your tree stays on your device. Opening it does not upload it or share it with anyone.</p>`
           : `<p class="snap-note">This is a still picture, because this app's preview can't run the interactive viewer. On Android, open the file with Chrome. On a computer, open it in any web browser. On iPhone, ask the sender for a share link.</p>`)+`${pic}</div>`);
   const data=doc.ownerDocument.createElement('script'); data.id='tvEmbedded'; data.type='application/json';
   data.textContent=JSON.stringify(payload).replace(/</g,'\\u003c'); body.appendChild(data);
@@ -1596,7 +1596,7 @@ setupPhoneDefaults();
 render();
 restoreFromHash().then(ok=> ok || restoreEmbedded() || restoreFromSession());
 (function(){ const chip=$('privChip'); const pop=document.createElement('div'); pop.id='privPop'; pop.setAttribute('role','status');
-  pop.innerHTML='<b>Stays on this device</b><br>Trees are read and drawn by this browser, never uploaded. This page is technically blocked from sending data anywhere. Opening a share link only loads this blank viewer; the tree inside the link is never sent to a server.';
+  pop.innerHTML='<b>Private</b><br>Your tree stays on your device. It is never uploaded or shared with anyone.';
   document.body.appendChild(pop);
   chip.onclick=e=>{ e.stopPropagation(); if(pop.classList.toggle('on')){ const r=chip.getBoundingClientRect(); pop.style.top=(r.bottom+8)+'px'; pop.style.left=Math.max(8, Math.min(r.left, window.innerWidth-pop.offsetWidth-8))+'px'; } };
   document.addEventListener('pointerdown', e=>{ if(e.target!==chip && !chip.contains(e.target)) pop.classList.remove('on'); });

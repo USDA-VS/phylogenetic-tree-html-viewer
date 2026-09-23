@@ -7,7 +7,7 @@
 - **Branch lengths as SNP counts.** Switch the scale from substitutions/site to SNPs, using the positions in your SNP alignment.
 - **Share a tree as a link.** Colors, rerooting and all travel inside the link, and it opens fully interactive on computers and phones, iPhone included. No uploads, no accounts.
 - **Or as a single file.** Save a self-contained HTML file or a PDF to attach to an email. It works offline.
-- **Private by design.** Your trees are read by your own browser, and the page is technically blocked from sending data anywhere.
+- **Private.** Your trees stay on your device. Nothing is ever uploaded.
 - **Nothing to install.** Runs in any modern browser, on desktop or phone.
 
 ![Tree Viewer showing a tree colored by host, with branch lengths in SNPs](viewer-desktop.png)
@@ -96,7 +96,7 @@ The viewer adapts to small screens:
 ## Common questions
 
 **Does opening a share link, or tapping "Open interactive tree", send my tree anywhere?**
-No. The link only loads the blank viewer from GitHub, like visiting any website. Your tree sits in the part of the link after the `#`, which browsers never send to a server, and the viewer is blocked from sending data anywhere. Once the tree is open, the viewer also clears it from the address bar. The link does stay in your own browser history; if your browser syncs history to an Apple or Google account, use a private tab for sensitive trees.
+No. Your tree stays on your device and is never uploaded. The link just opens the viewer. One tip: your browser remembers the links you visit, and some browsers copy that history to your Apple or Google account. For sensitive trees, use a private browser tab.
 
 **My sample names show spaces instead of underscores.**
 That's standard Newick behavior. Metadata still matches whether your table uses spaces or underscores.
