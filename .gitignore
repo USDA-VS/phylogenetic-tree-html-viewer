@@ -1,0 +1,12 @@
+# Only the viewer and its documentation belong in this repository.
+# Everything else is ignored, so trees, SNP tables, alignments, metadata,
+# PDFs and saved tree pages can't be added by accident.
+*
+!index.html
+!README.md
+!LICENSE
+!.gitignore
+!.github/
+!.github/workflows/
+!.github/workflows/*.yml
+!/*.png
