@@ -80,6 +80,8 @@ Also under *Export*: **SVG** and **PNG** images for figures, and **Newick** to s
 
 ![Tree Viewer on a phone, with a clade selected](viewer-phone.png)
 
+Open the viewer's web address or a share link on any phone, iPhone included, and you get the full interactive viewer. The one exception: an HTML file sent as an email or chat attachment shows a still picture on iPhone (with a button to open the interactive version).
+
 The viewer adapts to small screens:
 
 - **Toolbar** at the bottom: Search, Fit, SNPs/Subs, Layout and Options.
@@ -102,7 +104,7 @@ Email and chat apps on iPhone can't run interactive HTML files. Send a **share l
 Some chat apps cut off very long links (large trees). Send the HTML file or PDF instead.
 
 **Can I use it offline?**
-Yes. Save this page (`index.html`) to your computer and open it in your browser. Everything works without internet.
+Yes. Download `TreeViewer.html` from this repository and open it in your browser. Everything works without internet.
 
 ---
 
@@ -114,20 +116,20 @@ Yes. Save this page (`index.html`) to your computer and open it in your browser.
 ### Setting up the page
 
 1. Create a public repository named `phylogenetic-tree-html-viewer`.
-2. Upload `index.html`, `README.md`, `viewer-desktop.png` and `viewer-phone.png` (**Add file → Upload files**).
+2. Upload `TreeViewer.html`, `README.md`, `viewer-desktop.png` and `viewer-phone.png` (**Add file → Upload files**).
 3. Add the two safety files with **Add file → Create new file**, pasting in their contents: name one `.gitignore`, and the other `.github/workflows/publish.yml` (typing the slashes creates the folders).
 4. Go to **Settings → Pages → Build and deployment**, and set **Source** to **GitHub Actions**.
 5. Your page appears at `https://YOUR-NAME.github.io/phylogenetic-tree-html-viewer/` within a minute or two. Replace `YOUR-NAME` at the top of this README with your GitHub username.
 
-**Optional:** in `index.html`, set `VIEWER_URL_DEFAULT` to your page's address. HTML files saved from downloaded copies of the viewer will then also get the "Open interactive tree" button.
+**Optional:** in `TreeViewer.html`, set `VIEWER_URL_DEFAULT` to your page's address. HTML files saved from downloaded copies of the viewer will then also get the "Open interactive tree" button.
 
 ### Built-in safeguards against publishing data
 
-- **The viewer holds no data.** `index.html` is a blank tool. Trees are only ever opened in a visitor's own browser.
-- **Privacy lock.** A Content-Security-Policy in `index.html` blocks the page from loading outside code or sending anything over the network.
+- **The viewer holds no data.** `TreeViewer.html` is a blank tool. Trees are only ever opened in a visitor's own browser.
+- **Privacy lock.** A Content-Security-Policy in `TreeViewer.html` blocks the page from loading outside code or sending anything over the network.
 - **Allow-list `.gitignore`.** When using GitHub Desktop or git on your computer, only the files listed above can be added. Trees, tables, alignments, PDFs and saved tree pages are ignored.
-- **Check on every change.** The workflow rejects any file that isn't on the list, any HTML file with a saved tree inside it, and any `index.html` missing the privacy lock. If a check fails, nothing is published and GitHub emails you.
-- **Only `index.html` is published.** Even if something else lands in the repository, the website serves the viewer alone.
+- **Check on every change.** The workflow rejects any file that isn't on the list, any HTML file with a saved tree inside it, and any `TreeViewer.html` missing the privacy lock. If a check fails, nothing is published and GitHub emails you.
+- **Only `TreeViewer.html` is published.** The website serves it as its front page, so the viewer opens at the plain page address. Even if something else lands in the repository, the website serves the viewer alone.
 - **Warning banner.** If a saved tree file is ever opened from a website, the page shows a red warning.
 
 **The one rule:** never upload files made with *Save as HTML* (`*_tree.html`), tree files, SNP tables or screenshots of real data. For README pictures, use the example tree or invented names.

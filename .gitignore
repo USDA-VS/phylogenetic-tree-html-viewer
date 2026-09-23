@@ -2,7 +2,7 @@
 # Everything else is ignored, so trees, SNP tables, alignments, metadata,
 # PDFs and saved tree pages can't be added by accident.
 *
-!index.html
+!TreeViewer.html
 !README.md
 !LICENSE
 !.gitignore
