@@ -1,15 +1,16 @@
 # Phylogenetic Tree HTML Viewer
 
-View, explore and share phylogenetic trees in your web browser. Nothing to install, and your data never leaves your computer.
+**A tree viewer built for SNP trees, such as those from vSNP, that you can share as a link, a file or a PDF.**
 
-**Open the viewer: https://YOUR-NAME.github.io/phylogenetic-tree-html-viewer/**
+### [Open the viewer](https://usda-vs.github.io/phylogenetic-tree-html-viewer/)
+
+- **Branch lengths as SNP counts.** Switch the scale from substitutions/site to SNPs, using the positions in your SNP alignment.
+- **Share a tree as a link.** Colors, rerooting and all travel inside the link, and it opens fully interactive on computers and phones, iPhone included. No uploads, no accounts.
+- **Or as a single file.** Save a self-contained HTML file or a PDF to attach to an email. It works offline.
+- **Private by design.** Your trees are read by your own browser, and the page is technically blocked from sending data anywhere.
+- **Nothing to install.** Runs in any modern browser, on desktop or phone.
 
 ![Tree Viewer showing a tree colored by host, with branch lengths in SNPs](viewer-desktop.png)
-
-Built for everyday work with SNP trees, such as those from vSNP: reroot, color clades, show branch lengths as SNP counts, and send the result to colleagues as a file, a PDF or a link.
-
-> [!IMPORTANT]
-> **Your data stays with you.** Trees and tables you open are read by your own browser. They are not uploaded anywhere, and the page is technically blocked from sending data over the internet.
 
 ---
 
@@ -115,13 +116,13 @@ Yes. Download `TreeViewer.html` from this repository and open it in your browser
 
 ### Setting up the page
 
-1. Create a public repository named `phylogenetic-tree-html-viewer`.
+1. The repository is [`USDA-VS/phylogenetic-tree-html-viewer`](https://github.com/USDA-VS/phylogenetic-tree-html-viewer).
 2. Upload `TreeViewer.html`, `README.md`, `viewer-desktop.png` and `viewer-phone.png` (**Add file → Upload files**).
 3. Add the two safety files with **Add file → Create new file**, pasting in their contents: name one `.gitignore`, and the other `.github/workflows/publish.yml` (typing the slashes creates the folders).
 4. Go to **Settings → Pages → Build and deployment**, and set **Source** to **GitHub Actions**.
-5. Your page appears at `https://YOUR-NAME.github.io/phylogenetic-tree-html-viewer/` within a minute or two. Replace `YOUR-NAME` at the top of this README with your GitHub username.
+5. The page is published at https://usda-vs.github.io/phylogenetic-tree-html-viewer/ a minute or two after each change.
 
-**Optional:** in `TreeViewer.html`, set `VIEWER_URL_DEFAULT` to your page's address. HTML files saved from downloaded copies of the viewer will then also get the "Open interactive tree" button.
+`VIEWER_URL_DEFAULT` in `TreeViewer.html` holds this page's address, so share links and the "Open interactive tree" button work from any copy of the viewer, including downloaded ones. If the page ever moves, update that line.
 
 ### Built-in safeguards against publishing data
 
