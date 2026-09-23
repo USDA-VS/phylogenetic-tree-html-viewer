@@ -43,6 +43,12 @@ label{display:flex;align-items:center;gap:6px}
 #topbar .brand{font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px}
 #topbar .brand svg{width:20px;height:20px}
 #topbar .spacer{flex:1}
+.privChip{display:inline-flex;align-items:center;gap:5px;padding:2px 10px;border-radius:999px;font-size:12px;cursor:help;color:#1b6b38;background:#e8f5ec;border:1px solid #b9dec6}
+.privChip:hover{border-color:#1b6b38}
+.privChip svg{width:13px;height:13px}
+#privPop{display:none;position:fixed;z-index:60;width:min(340px,calc(100vw - 16px));background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.45;box-shadow:0 6px 24px rgba(0,0,0,.2)}
+#privPop.on{display:block}
+:root[data-theme="dark"] .privChip{color:#8fd6a6;background:rgba(46,160,67,.14);border-color:rgba(46,160,67,.4)}
 .topLink{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border:1px solid var(--border);border-radius:6px;background:var(--panel2);color:var(--text);text-decoration:none;font-size:12px}
 .topLink:hover{border-color:var(--accent)}
 .topLink svg{width:15px;height:15px}
@@ -105,6 +111,8 @@ html.tv-static #tvSnapshot{display:block;padding:16px}
 #tvSnapshot .snap-note{color:var(--muted);margin:0 0 12px;max-width:60ch;line-height:1.45}
 #tvSnapshot svg{display:block;width:100%;height:auto;border:1px solid var(--border);border-radius:6px}
 @supports (height:100dvh){ body{height:100dvh} }
+#tvSnapshot .snap-private{margin:0 0 14px;max-width:60ch;font-size:13px;line-height:1.45;color:var(--muted)}
+#tvSnapshot .snap-private b{color:var(--text)}
 #tvSnapshot .snap-link{display:inline-block;margin:0 0 12px;padding:10px 16px;border-radius:8px;background:var(--accent);color:#fff;font-weight:600;text-decoration:none}
 /* Phone interface (hidden on wider screens) */
 #sheetHead,#mFileRow,#mBar,#mSearch,#sheetBackdrop,#mPicker,#toast{display:none}
@@ -114,6 +122,9 @@ html.tv-static #tvSnapshot{display:block;padding:16px}
   #toggleSidebar,#saveHtmlBtn,#savePdfBtn,#openBtn,#topbar .brand{display:none}
   #fileName{flex:1;max-width:none;font-size:14px;color:var(--text);font-weight:600}
   #themeBtn{min-width:36px;min-height:36px}
+  .privChip{min-height:32px;padding:0 9px}
+  .privChip span{display:none}
+  .privChip svg{width:16px;height:16px}
   .topLink{min-height:36px;min-width:36px;justify-content:center;padding:0 8px}
   .topLink span{display:none}
   .topLink svg{width:20px;height:20px}
@@ -172,6 +183,7 @@ html.tv-static #tvSnapshot{display:block;padding:16px}
   <button id="toggleSidebar" class="small" title="Toggle side panel">&#9776;</button>
   <div class="brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h6M9 12V6h6M9 12v6h6M15 6h4M15 18h4M15 6v0"/></svg>Tree Viewer</div>
   <span id="fileName"></span>
+  <button id="privChip" class="privChip" type="button" title="Your tree stays on this device. It is read and drawn by this browser, never uploaded, and this page is blocked from sending data anywhere."><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>On this device only</span></button>
   <select id="treeSelect" title="Tree" style="display:none"></select>
   <div class="spacer"></div>
   <button id="savePdfBtn" class="small" title="Save the whole tree as a PDF, which opens on any phone including iPhone">Save PDF</button>
@@ -1080,6 +1092,7 @@ window.addEventListener('resize', ()=>{ drawScaleBar(); });
 
 /* ---------------- Loading trees ---------------- */
 function loadTrees(text, name){
+  if(typeof forgetSessionTree==='function') forgetSessionTree();
   let trees; try{ trees=parseTreeText(text, name); }catch(err){ alert('Could not parse tree: '+err.message); return; }
   if(!trees.length){ alert('No trees found in file.'); return; }
   S.trees=trees; S.fileName=name||''; $('fileName').textContent=name||''; $('fileName').title=name||'';
@@ -1272,7 +1285,7 @@ async function buildShareableHTML(){
   // static picture first in <body>, so previews without JavaScript still show the tree
   const nTips=leaves(S.root).length; const pic=snapshotSVG();
   body.insertAdjacentHTML('afterbegin', `<div id="tvSnapshot"><div class="snap-title">${esc(S.fileName||'Phylogenetic tree')}, ${nTips} tips</div>`+
-    (link ? `<p class="snap-note">This is a still picture. Tap the button to open the interactive tree in your browser, with zoom, search, rerooting and coloring.</p><a class="snap-link" href="${esc(link)}">Open interactive tree</a>`
+    (link ? `<p class="snap-note">This is a still picture. Tap the button to open the interactive tree in your browser, with zoom, search, rerooting and coloring.</p><a class="snap-link" href="${esc(link)}">Open interactive tree</a><p class="snap-private"><b>Private:</b> this button only loads the blank viewer from GitHub. Your tree travels in the part of the link after the #, which browsers never send to any server, and the viewer is blocked from sending data anywhere. Nothing is uploaded.</p>`
           : `<p class="snap-note">This is a still picture, because this app's preview can't run the interactive viewer. On Android, open the file with Chrome. On a computer, open it in any web browser. On iPhone, ask the sender for a share link.</p>`)+`${pic}</div>`);
   const data=doc.ownerDocument.createElement('script'); data.id='tvEmbedded'; data.type='application/json';
   data.textContent=JSON.stringify(payload).replace(/</g,'\\u003c'); body.appendChild(data);
@@ -1365,8 +1378,14 @@ if(isHosted()) $('viewerUrlRow').style.display='none';
 $('viewerUrl').addEventListener('change', e=>{ const v=e.target.value.trim(); if(v && !/^https?:\/\//i.test(v)){ msg('The address should start with https://'); return; } try{ localStorage.setItem('tv-viewer-url', v); }catch(err){} msg(v?'Viewer address saved':'Viewer address cleared'); });
 async function restoreFromHash(){
   const m=location.hash.match(/^#tree=([A-Za-z0-9_\-]+)/); if(!m) return false;
-  try{ return restorePayload(await decodePayload(m[1])); }catch(err){ msg('This link\u2019s tree could not be read — it may have been cut off when it was sent'); return false; }
+  let ok=false; try{ ok=restorePayload(await decodePayload(m[1])); }catch(err){ msg('This link\u2019s tree could not be read — it may have been cut off when it was sent'); return false; }
+  if(ok){ try{ sessionStorage.setItem('tv-link-tree', m[1]); }catch(e){}   // this tab only, on this device; cleared when the tab closes
+    try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){} }
+  return ok;
 }
+async function restoreFromSession(){ let t=null; try{ t=sessionStorage.getItem('tv-link-tree'); }catch(e){} if(!t) return false;
+  try{ return restorePayload(await decodePayload(t)); }catch(e){ return false; } }
+function forgetSessionTree(){ try{ sessionStorage.removeItem('tv-link-tree'); }catch(e){} }
 
 /* ============================================================
    Phone interface: bottom toolbar, options sheet, selection actions
@@ -1575,7 +1594,13 @@ ensureGroups();
 $('branchColor').value=getComputedStyle(document.documentElement).getPropertyValue('--branch').trim();
 setupPhoneDefaults();
 render();
-restoreFromHash().then(ok=>{ if(!ok) restoreEmbedded(); });
+restoreFromHash().then(ok=> ok || restoreEmbedded() || restoreFromSession());
+(function(){ const chip=$('privChip'); const pop=document.createElement('div'); pop.id='privPop'; pop.setAttribute('role','status');
+  pop.innerHTML='<b>Stays on this device</b><br>Trees are read and drawn by this browser, never uploaded. This page is technically blocked from sending data anywhere. Opening a share link only loads this blank viewer; the tree inside the link is never sent to a server.';
+  document.body.appendChild(pop);
+  chip.onclick=e=>{ e.stopPropagation(); if(pop.classList.toggle('on')){ const r=chip.getBoundingClientRect(); pop.style.top=(r.bottom+8)+'px'; pop.style.left=Math.max(8, Math.min(r.left, window.innerWidth-pop.offsetWidth-8))+'px'; } };
+  document.addEventListener('pointerdown', e=>{ if(e.target!==chip && !chip.contains(e.target)) pop.classList.remove('on'); });
+})();
 </script>
 </body>
 </html>

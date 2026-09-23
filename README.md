@@ -73,7 +73,7 @@ All three options keep your colors, rerooting, collapsed clades, metadata and se
 Also under *Export*: **SVG** and **PNG** images for figures, and **Newick** to save the rerooted tree.
 
 > [!CAUTION]
-> Links, saved HTML files and PDFs **contain your tree**. Anyone you send them to can see the sample names. Share them the way you would share the tree file itself.
+> Links, saved HTML files and PDFs **contain your tree**. Anyone you send them to can see the sample names, and your email or chat service keeps a copy of the message, as it would with any attachment. Share them the way you would share the tree file itself.
 
 ---
 
@@ -94,6 +94,9 @@ The viewer adapts to small screens:
 ---
 
 ## Common questions
+
+**Does opening a share link, or tapping "Open interactive tree", send my tree anywhere?**
+No. The link only loads the blank viewer from GitHub, like visiting any website. Your tree sits in the part of the link after the `#`, which browsers never send to a server, and the viewer is blocked from sending data anywhere. Once the tree is open, the viewer also clears it from the address bar. The link does stay in your own browser history; if your browser syncs history to an Apple or Google account, use a private tab for sensitive trees.
 
 **My sample names show spaces instead of underscores.**
 That's standard Newick behavior. Metadata still matches whether your table uses spaces or underscores.
