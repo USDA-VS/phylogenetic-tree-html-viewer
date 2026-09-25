@@ -232,6 +232,7 @@ html.tv-static #tvSnapshot{display:block;padding:16px}
       <label><input type="checkbox" id="alignTips"> Align tips</label>
       <label><input type="checkbox" id="showNodeDots"> Node dots</label>
       <label><input type="checkbox" id="showScale" checked> Scale bar</label>
+      <label title="Names stop growing when you zoom in, so they spread apart and stay readable"><input type="checkbox" id="smartLabels" checked> Readable zoom</label>
       <label><input type="checkbox" id="showBranchLen"> Branch lengths</label>
       <label><input type="checkbox" id="showLegend" checked> Legend</label>
     </div>
@@ -728,7 +729,7 @@ function radialDaylight(root, iterations){
 const S = {
   trees:[], treeIndex:0, root:null, original:null, undo:[], fileName:'',
   layout:'rectangular', useBL:true, tipSpacing:14, treeWidth:800, openAngle:90, rotation:0,
-  showTipLabels:true, alignTips:false, showNodeDots:false, showScale:true, showBranchLen:false, showLegend:true,
+  showTipLabels:true, alignTips:false, showNodeDots:false, showScale:true, smartLabels:true, showBranchLen:false, showLegend:true,
   nodeLabelField:'', minSupport:0, fontSize:11, lineWidth:1.25, branchColor:null,
   selection:new Set(), matches:new Set(), hlColor:'#ffd54a', paintColor:'#d62728',
   meta:null, metaColumn:'', metaColorBranches:true, metaTipShapes:false, legend:[], tipColor:new Map(),
@@ -792,7 +793,65 @@ function ensureGroups(){
   G.sel=el('g',{id:'gSel'},G.vp); G.box=el('rect',{id:'selBox',fill:'rgba(47,111,237,.12)',stroke:'#2f6fed','stroke-dasharray':'4 3',visibility:'hidden'},svg);
   G.scale=el('g',{id:'gScale'},svg); G.legend=el('g',{id:'legendG'},svg);
 }
-function applyView(){ const v=S.view; G.vp.setAttribute('transform',`translate(${v.tx},${v.ty}) scale(${v.k})`); drawScaleBar(); }
+function applyView(){ const v=S.view; G.vp.setAttribute('transform',`translate(${v.tx},${v.ty}) scale(${v.k})`); adjustLabels(false); scheduleDeclutter(); drawScaleBar(); }
+/* Readable zoom: names grow with the tree until they reach a comfortable reading size, then stop,
+   so zooming in spreads crowded names apart instead of blowing them up. */
+function labelFont(){ const fs=S.fontSize; if(!S.smartLabels) return fs; const cap=Math.max(fs, (typeof isPhone==='function'&&isPhone())?13:12); return Math.min(fs, cap/Math.max(S.view.k,1e-6)); }
+let _lastFe=null;
+function adjustLabels(force, feOverride){ if(!G.labels) return; const fs=S.fontSize; const fe=(feOverride!=null)?feOverride:labelFont();
+  if(!force && fe===_lastFe) return; _lastFe=fe; const u=fe/fs;
+  G.labels.setAttribute('font-size', fe); G.nlabels.setAttribute('font-size', Math.max(4, fs*0.85)*u);
+  for(const h of S._hl||[]){ const offW=h.off*u, w=h.len*fe*0.58+6*u; h.r.setAttribute('x', h.anchor==='end'? -offW-w+2*u : offW-2*u); h.r.setAttribute('y', h.em*fe-fe*0.65); h.r.setAttribute('width', w); h.r.setAttribute('height', fe*1.3); }
+  for(const c of S._shapes||[]){ const cx=fe*0.45+2*u; c.c.setAttribute('cx', c.anchor==='end'?-cx:cx); c.c.setAttribute('cy', c.em*fe); c.c.setAttribute('r', fe*0.35); } }
+/* Names of samples at exactly the same spot (zero-length branches) are stacked one under another */
+function computeStacks(tips, fs){ const tol=fs*0.35, cell=new Map(), parent=new Map();
+  const find=x=>{ while(parent.get(x)!==x){ parent.set(x, parent.get(parent.get(x))); x=parent.get(x); } return x; };
+  for(const nd of tips){ parent.set(nd,nd); const cx=Math.floor(nd.x/tol), cy=Math.floor(nd.y/tol);
+    for(let i=-1;i<=1;i++) for(let j=-1;j<=1;j++){ const list=cell.get((cx+i)+','+(cy+j)); if(!list) continue;
+      for(const o of list){ if(Math.hypot(o.x-nd.x,o.y-nd.y)<=tol){ const a=find(o), b=find(nd); if(a!==b) parent.set(b,a); } } }
+    const key=cx+','+cy; if(!cell.has(key)) cell.set(key,[]); cell.get(key).push(nd); }
+  const groups=new Map(); for(const nd of tips){ const r=find(nd); if(!groups.has(r)) groups.set(r,[]); groups.get(r).push(nd); }
+  const out=new Map();
+  for(const g of groups.values()){ if(g.length<2) continue;
+    const mean=Math.atan2(g.reduce((s,n)=>s+Math.sin(n.angle),0), g.reduce((s,n)=>s+Math.cos(n.angle),0));
+    const rel=n=>{ let d=n.angle-mean; while(d>Math.PI) d-=2*Math.PI; while(d<-Math.PI) d+=2*Math.PI; return d; };
+    g.sort((a,b)=>rel(a)-rel(b)); const flip=Math.cos(mean)<0;
+    g.forEach((n,i)=>{ const idx=flip? (g.length-1-i) : i; out.set(n,{angle:mean, em:(idx-(g.length-1)/2)*1.2}); }); }
+  return out; }
+function stackedTransform(nd, a){ const flip=Math.cos(a)<0, deg=a*180/Math.PI; return {transform:`translate(${nd.x},${nd.y}) rotate(${flip?deg+180:deg})`, anchor:flip?'end':'start', x:0, px:nd.x, py:nd.y, rot:flip?deg+180:deg}; }
+function emStr(v){ return (Math.round(v*1000)/1000)+'em'; }
+const _nameW=new Map(); let _nameCtx=null;
+function nameWidth(str){ let w=_nameW.get(str); if(w!=null) return w; if(!_nameCtx) _nameCtx=document.createElement('canvas').getContext('2d');
+  _nameCtx.font='100px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif'; w=_nameCtx.measureText(str).width/100; _nameW.set(str,w); return w; }
+/* Declutter: once names are big enough to read, a name that would overlap another is hidden until
+   zooming in makes room for it. Zoomed out, every name is shown as before. */
+let _declT=null;
+function scheduleDeclutter(){ clearTimeout(_declT); _declT=setTimeout(declutter, 80); }
+function showAllLabels(){ for(const l of S._tipLabels||[]) if(l.hidden){ l.t.removeAttribute('visibility'); l.hidden=false; } }
+function declutter(){ const list=S._tipLabels||[]; if(!list.length) return;
+  const fs=S.fontSize, k=S.view.k, fe=labelFont(), scr=fe*k;
+  if(!S.smartLabels || scr<7){ showAllLabels(); return; }
+  const W=svg.clientWidth, H=svg.clientHeight, M=60, cs=48, grid=new Map(), kept=[];
+  const hPx=scr*1.12, u=fe/fs;
+  for(const l of list){
+    const ax=S.view.tx+k*l.px, ay=S.view.ty+k*l.py, th=l.rot*Math.PI/180, ux=Math.cos(th), uy=Math.sin(th), vx=-uy, vy=ux;
+    const offPx=l.off*u*k, wPx=l.w1*scr; const s0=l.anchor==='end'? -(offPx+wPx) : offPx, s1=l.anchor==='end'? -offPx : offPx+wPx;
+    const mid=(s0+s1)/2, pp=l.em*scr; const cx=ax+ux*mid+vx*pp, cy=ay+uy*mid+vy*pp, hw=(s1-s0)/2, hh=hPx/2;
+    const ex=Math.abs(ux)*hw+Math.abs(vx)*hh, ey=Math.abs(uy)*hw+Math.abs(vy)*hh;
+    if(cx+ex<-M || cx-ex>W+M || cy+ey<-M || cy-ey>H+M){ if(l.hidden){ l.t.removeAttribute('visibility'); l.hidden=false; } continue; }
+    const box={cx,cy,ux,uy,vx,vy,hw:hw*0.97,hh:hh*0.9};
+    const gx0=Math.floor((cx-ex)/cs), gx1=Math.floor((cx+ex)/cs), gy0=Math.floor((cy-ey)/cs), gy1=Math.floor((cy+ey)/cs);
+    let hit=false;
+    outer: for(let gx=gx0;gx<=gx1;gx++) for(let gy=gy0;gy<=gy1;gy++){ const cell=grid.get(gx+','+gy); if(!cell) continue; for(const o of cell){ if(obbOverlap(box,o)){ hit=true; break outer; } } }
+    if(hit){ if(!l.hidden){ l.t.setAttribute('visibility','hidden'); l.hidden=true; } continue; }
+    if(l.hidden){ l.t.removeAttribute('visibility'); l.hidden=false; }
+    for(let gx=gx0;gx<=gx1;gx++) for(let gy=gy0;gy<=gy1;gy++){ const key=gx+','+gy; if(!grid.has(key)) grid.set(key,[]); grid.get(key).push(box); }
+  } }
+function obbOverlap(a,b){ const dx=b.cx-a.cx, dy=b.cy-a.cy;
+  for(const [x,y] of [[a.ux,a.uy],[a.vx,a.vy],[b.ux,b.uy],[b.vx,b.vy]]){
+    const d=Math.abs(dx*x+dy*y), ra=a.hw*Math.abs(a.ux*x+a.uy*y)+a.hh*Math.abs(a.vx*x+a.vy*y), rb=b.hw*Math.abs(b.ux*x+b.uy*y)+b.hh*Math.abs(b.vx*x+b.vy*y);
+    if(d>ra+rb) return false; }
+  return true; }
 
 function edgePath(nd, L){
   const p=nd.parent; if(!p) return null;
@@ -810,13 +869,13 @@ function isRad(L){ return L.type==='radial'||L.type==='daylight'; }
 
 function labelTransform(nd, L, offset){
   // returns {transform, anchor, x}
-  if(L.type==='rectangular'||L.type==='slanted'){ const x = S.alignTips ? L.maxX : nd.x; return {transform:`translate(${x+offset},${nd.y})`, anchor:'start', x:0}; }
+  if(L.type==='rectangular'||L.type==='slanted'){ const x = S.alignTips ? L.maxX : nd.x; return {transform:`translate(${x+offset},${nd.y})`, anchor:'start', x:0, px:x+offset, py:nd.y, rot:0}; }
   let a = nd.angle; let r;
   if(isCirc(L)){ r = S.alignTips ? L.R : nd.r; const flip = Math.cos(a)<0; const deg=a*180/Math.PI; const x=r*Math.cos(a), y=r*Math.sin(a);
-    return {transform:`translate(${x},${y}) rotate(${flip?deg+180:deg})`, anchor:flip?'end':'start', x: flip?-offset:offset}; }
+    return {transform:`translate(${x},${y}) rotate(${flip?deg+180:deg})`, anchor:flip?'end':'start', x: flip?-offset:offset, px:x, py:y, rot:flip?deg+180:deg}; }
   // radial
   const flip = Math.cos(a)<0; const deg=a*180/Math.PI;
-  return {transform:`translate(${nd.x},${nd.y}) rotate(${flip?deg+180:deg})`, anchor:flip?'end':'start', x: flip?-offset:offset};
+  return {transform:`translate(${nd.x},${nd.y}) rotate(${flip?deg+180:deg})`, anchor:flip?'end':'start', x: flip?-offset:offset, px:nd.x, py:nd.y, rot:flip?deg+180:deg};
 }
 
 function render(){
@@ -855,17 +914,21 @@ function render(){
     if(S.selection.has(nd)){ el('circle',{cx:nd.x,cy:nd.y,r:dotR*2+2,fill:'none',stroke:'var(--sel)','stroke-width':2},G.sel); }
   }
   // tip labels
+  S._hl=[]; S._shapes=[]; S._tipLabels=[];
   if(showLabels){
     const frag=document.createDocumentFragment();
-    for(const nd of vis){ if(nd.children.length&&!nd.collapsed) continue; if(nd.collapsed) continue;
+    const tips=vis.filter(nd=>!nd.children.length && !nd.collapsed);
+    const stacks = isRad(L) ? computeStacks(tips, fs) : new Map();
+    for(const nd of tips){
       const off = 4 + (S.metaTipShapes&&S.tipColor.get(nd)?fs*0.8:0);
-      const lt=labelTransform(nd,L,off);
-      const t=el('text',{transform:lt.transform,x:lt.x,y:0,'dominant-baseline':'middle','text-anchor':lt.anchor,'font-size':fs,fill:nd._color||txt,class:'tip-label','font-weight':S.selection.has(nd)?'700':null,'font-family':'-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif'});
+      const st=stacks.get(nd); const lt = st ? stackedTransform(nd, st.angle) : labelTransform(nd,L,0); const em = st ? st.em : 0;
+      const t=el('text',{transform:lt.transform,x:emStr((lt.anchor==='end'?-1:1)*off/fs),y:em?emStr(em):0,'dominant-baseline':'middle','text-anchor':lt.anchor,fill:nd._color||txt,class:'tip-label','font-weight':S.selection.has(nd)?'700':null,'font-family':'-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif'});
       t.textContent=nd.name; t.__node=nd; frag.appendChild(t);
-      if(S.matches.has(nd)){ const w=nd.name.length*fs*0.58+6; const r=el('rect',{transform:lt.transform,x:lt.anchor==='end'?lt.x-w+2:lt.x-2,y:-fs*0.65,width:w,height:fs*1.3,fill:S.hlColor,rx:2},G.hl); }
-      if(S.metaTipShapes && S.tipColor.get(nd)){ const lt2=labelTransform(nd,L,0); el('circle',{transform:lt2.transform,cx:lt2.anchor==='end'?-(fs*0.45+2):fs*0.45+2,cy:0,r:fs*0.35,fill:S.tipColor.get(nd),stroke:txt,'stroke-width':0.5},G.nodes); }
+      S._tipLabels.push({t, nd, px:lt.px, py:lt.py, rot:lt.rot, anchor:lt.anchor, off, em, w1:nameWidth(nd.name), pri:(S.matches.has(nd)||S.selection.has(nd))?0:1});
+      if(S.matches.has(nd)){ const r=el('rect',{transform:lt.transform,fill:S.hlColor,rx:2},G.hl); S._hl.push({r, anchor:lt.anchor, off, len:nd.name.length, em}); }
+      if(S.metaTipShapes && S.tipColor.get(nd)){ const c=el('circle',{transform:lt.transform,fill:S.tipColor.get(nd),stroke:txt,'stroke-width':0.5},G.nodes); S._shapes.push({c, anchor:lt.anchor, em}); }
     }
-    G.labels.appendChild(frag);
+    G.labels.appendChild(frag); S._tipLabels.sort((a,b)=>a.pri-b.pri);
   } else {
     // highlight matched tips with a marker even if labels hidden
     for(const nd of S.matches){ if(nd.x!=null) el('circle',{cx:nd.x,cy:nd.y,r:Math.max(2,dotR*1.5),fill:S.hlColor,stroke:txt,'stroke-width':0.5},G.hl); }
@@ -881,7 +944,7 @@ function render(){
       if((S.showBranchLen||S.nodeLabelField==='length') && nd.parent && nd.length!=null){ placeNodeLabel(nd,L,fmtLen(nd.length),nfs,txt,'branch'); }
     }
   }
-  drawLegend(); applyView();
+  drawLegend(); _lastFe=null; applyView();
   $('statTips').textContent = `${leaves(S.root).length} tips`; $('statNodes').textContent = `${vis.length} visible nodes`;
   svg.dataset.renderMs = (performance.now()-t0).toFixed(0);
   updateSelInfo();
@@ -893,13 +956,13 @@ function placeNodeLabel(nd,L,text,fs,txt,kind){
     if(L.type==='rectangular'){ x=(p.x+nd.x)/2; y=nd.y-2; anchor='middle'; }
     else if(isCirc(L)){ const rm=(p.r+nd.r)/2; x=rm*Math.cos(nd.angle); y=rm*Math.sin(nd.angle); anchor='middle'; rot=nd.angle*180/Math.PI+(Math.cos(nd.angle)<0?180:0); y=0; }
     else { x=(p.x+nd.x)/2; y=(p.y+nd.y)/2-2; anchor='middle'; }
-    if(isCirc(L)){ const rm=(p.r+nd.r)/2; el('text',{transform:`translate(${rm*Math.cos(nd.angle)},${rm*Math.sin(nd.angle)}) rotate(${rot})`,x:0,y:-2,'text-anchor':'middle','font-size':fs,fill:txt,opacity:.8},G.nlabels).textContent=text; return; }
-    el('text',{x,y,'text-anchor':anchor,'font-size':fs,fill:txt,opacity:.8},G.nlabels).textContent=text; return;
+    if(isCirc(L)){ const rm=(p.r+nd.r)/2; el('text',{transform:`translate(${rm*Math.cos(nd.angle)},${rm*Math.sin(nd.angle)}) rotate(${rot})`,x:0,y:-2,'text-anchor':'middle',fill:txt,opacity:.8},G.nlabels).textContent=text; return; }
+    el('text',{x,y,'text-anchor':anchor,fill:txt,opacity:.8},G.nlabels).textContent=text; return;
   }
   // node label: just right/above of the internal node
-  if(L.type==='rectangular'||L.type==='slanted'){ el('text',{x:nd.x+3,y:nd.y-3,'font-size':fs,fill:txt,opacity:.9},G.nlabels).textContent=text; return; }
+  if(L.type==='rectangular'||L.type==='slanted'){ el('text',{x:nd.x+3,y:nd.y-3,fill:txt,opacity:.9},G.nlabels).textContent=text; return; }
   const a=nd.angle; const flip=Math.cos(a)<0; const deg=a*180/Math.PI;
-  const t=el('text',{transform:`translate(${nd.x},${nd.y}) rotate(${flip?deg+180:deg})`,x:flip?-3:3,y:-3,'text-anchor':flip?'end':'start','font-size':fs,fill:txt,opacity:.9},G.nlabels); t.textContent=text;
+  const t=el('text',{transform:`translate(${nd.x},${nd.y}) rotate(${flip?deg+180:deg})`,x:flip?-3:3,y:-3,'text-anchor':flip?'end':'start',fill:txt,opacity:.9},G.nlabels); t.textContent=text;
 }
 
 function drawCollapsed(nd,L,base,txt,fs){
@@ -912,7 +975,7 @@ function drawCollapsed(nd,L,base,txt,fs){
   else if(isCirc(L)){ const re=nd.r+maxD*L.xScale; const da=half/Math.max(re,1); const a=nd.angle; pts=`${nd.x},${nd.y} ${re*Math.cos(a-da)},${re*Math.sin(a-da)} ${re*Math.cos(a+da)},${re*Math.sin(a+da)}`; const flip=Math.cos(a)<0, deg=a*180/Math.PI; const rr=S.alignTips?L.R:re; lt={transform:`translate(${rr*Math.cos(a)},${rr*Math.sin(a)}) rotate(${flip?deg+180:deg})`,anchor:flip?'end':'start',x:flip?-4:4}; }
   else { const a=nd.angle; const len=maxD*L.xScale; const xe=nd.x+len*Math.cos(a), ye=nd.y+len*Math.sin(a); const px=-Math.sin(a)*half, py=Math.cos(a)*half; pts=`${nd.x},${nd.y} ${xe+px},${ye+py} ${xe-px},${ye-py}`; const flip=Math.cos(a)<0, deg=a*180/Math.PI; lt={transform:`translate(${xe},${ye}) rotate(${flip?deg+180:deg})`,anchor:flip?'end':'start',x:flip?-4:4}; }
   const poly=el('polygon',{points:pts,fill:col,'fill-opacity':.35,stroke:S.selection.has(nd)?'var(--sel)':col,'stroke-width':S.lineWidth,class:'node-dot'},G.coll); poly.__node=nd;
-  if(S.showTipLabels){ const t=el('text',{transform:lt.transform,x:lt.x,y:0,'dominant-baseline':'middle','text-anchor':lt.anchor,'font-size':fs,fill:nd._color||txt,'font-style':'italic',class:'tip-label'},G.labels); t.textContent=lab; t.__node=nd; }
+  if(S.showTipLabels){ const t=el('text',{transform:lt.transform,x:emStr((lt.x||0)/fs),y:0,'dominant-baseline':'middle','text-anchor':lt.anchor,fill:nd._color||txt,'font-style':'italic',class:'tip-label'},G.labels); t.textContent=lab; t.__node=nd; }
 }
 
 function scaleSpec(pxPerSub){
@@ -946,7 +1009,7 @@ function drawLegend(){
 function fitToWindow(animate){
   if(!S.root) return;
   const W=svg.clientWidth, H=svg.clientHeight; if(!W||!H) return;
-  G.vp.setAttribute('transform','');
+  G.vp.setAttribute('transform',''); adjustLabels(true, S.fontSize);
   let bb; try{ bb=G.vp.getBBox(); }catch(e){ return; }
   if(!bb.width||!bb.height){ S.view={k:1,tx:W/2,ty:H/2}; applyView(); return; }
   const pad = W<500 ? 12 : 30; const hasLeg = S.showLegend && S.legend.length;
@@ -1078,7 +1141,7 @@ S.rootPos=0.5;
 $('layout').onchange=e=>{ S.layout=e.target.value; $('fanRow').style.display=S.layout==='fan'?'':'none'; $('rotRow').style.display=(S.layout==='rectangular'||S.layout==='slanted')?'none':''; render(); fitToWindow(); };
 $('blPhylo').onclick=()=>{ S.useBL=true; $('blPhylo').classList.add('on'); $('blClado').classList.remove('on'); render(); };
 $('blClado').onclick=()=>{ S.useBL=false; $('blClado').classList.add('on'); $('blPhylo').classList.remove('on'); render(); };
-for(const id of ['showTipLabels','alignTips','showNodeDots','showScale','showBranchLen','showLegend','metaColorBranches','metaTipShapes']){ $(id).onchange=e=>{ S[id]=e.target.checked; render(); }; }
+for(const id of ['showTipLabels','alignTips','showNodeDots','showScale','smartLabels','showBranchLen','showLegend','metaColorBranches','metaTipShapes']){ $(id).onchange=e=>{ S[id]=e.target.checked; render(); }; }
 $('nodeLabelField').onchange=e=>{ S.nodeLabelField=e.target.value; render(); };
 $('branchColor').oninput=e=>{ S.branchColor=e.target.value; render(); };
 $('resetBranchColor').onclick=()=>{ S.branchColor=null; $('branchColor').value=getComputedStyle(document.documentElement).getPropertyValue('--branch').trim(); render(); };
@@ -1142,8 +1205,11 @@ $('metaColorDefaultBtn').onclick=()=>{ if(!S.root) return; const pat=prompt('Reg
 /* ---------------- Export ---------------- */
 function download(name, blob){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },500); }
 function baseName(){ return (S.fileName||'tree').replace(/\.[^.]+$/,''); }
+function absolutizeEm(root){ // em offsets → plain numbers, for other programs that open exported files
+  root.querySelectorAll('text').forEach(t=>{ let e=t, fsz=null; while(e && fsz==null){ const v=e.getAttribute&&e.getAttribute('font-size'); if(v!=null) fsz=parseFloat(v); e=e.parentNode; }
+    if(fsz==null) fsz=S.fontSize; for(const a of ['x','y']){ const v=t.getAttribute(a); if(v && /em$/.test(v)) t.setAttribute(a, +(parseFloat(v)*fsz).toFixed(3)); } }); }
 function svgString(){
-  const W=svg.clientWidth, H=svg.clientHeight; const clone=svg.cloneNode(true);
+  const W=svg.clientWidth, H=svg.clientHeight; const clone=svg.cloneNode(true); absolutizeEm(clone);
   clone.setAttribute('xmlns',NS); clone.setAttribute('width',W); clone.setAttribute('height',H); clone.setAttribute('viewBox',`0 0 ${W} ${H}`);
   clone.querySelector('#gHits')?.remove(); clone.querySelector('#selBox')?.remove();
   const bg=clone.querySelector('rect'); bg.setAttribute('fill',themeCanvas());
@@ -1218,7 +1284,7 @@ svg.addEventListener('pointercancel', e=>{ endTouch(e); drag=null; svg.classList
 /* ============================================================
    Save as shareable HTML: this viewer + the current tree in one file
    ============================================================ */
-const SETTING_KEYS=['layout','useBL','tipSpacing','treeWidth','openAngle','rotation','showTipLabels','alignTips','showNodeDots','showScale','showBranchLen','showLegend',
+const SETTING_KEYS=['layout','useBL','tipSpacing','treeWidth','openAngle','rotation','showTipLabels','alignTips','showNodeDots','showScale','smartLabels','showBranchLen','showLegend',
   'nodeLabelField','minSupport','fontSize','lineWidth','branchColor','hlColor','paintColor','metaColumn','metaColorBranches','metaTipShapes','rootPos','units','snpSites','snpRound'];
 const LAYOUTS=['rectangular','slanted','circular','fan','radial','daylight'];
 function isHexColor(v){ return typeof v==='string' && /^#[0-9a-f]{6}$/i.test(v); }
@@ -1241,9 +1307,10 @@ function deserializeTree(o, parent=null){ if(!o||typeof o!=='object') throw new 
 /* Standalone SVG of the whole tree (not just the visible window), for places that can't run JavaScript */
 function snapshotSVG(){ const e=snapshotSVGElement(); return e? new XMLSerializer().serializeToString(e) : ''; }
 function snapshotSVGElement(){
-  const keepSel=[...S.selection]; S.selection.clear(); render();
+  const keepSel=[...S.selection]; S.selection.clear(); render(); adjustLabels(true, S.fontSize);
   let bb; try{ bb=G.vp.getBBox(); }catch(e){ bb=null; }
-  const tree=G.vp.cloneNode(true); tree.removeAttribute('transform'); tree.removeAttribute('id');
+  const tree=G.vp.cloneNode(true); tree.removeAttribute('transform'); tree.removeAttribute('id'); absolutizeEm(tree);
+  tree.querySelectorAll('#gLabels [visibility="hidden"]').forEach(t=>t.removeAttribute('visibility'));
   tree.querySelector('#gHits')?.remove(); tree.querySelector('#gSel')?.remove();
   tree.querySelectorAll('circle[fill="transparent"]').forEach(c=>c.remove());
   tree.querySelectorAll('[id]').forEach(e=>e.removeAttribute('id')); tree.querySelectorAll('[class]').forEach(e=>e.removeAttribute('class'));
@@ -1309,7 +1376,7 @@ function syncControls(){
   const ranges={tipSpacing:v=>v, treeWidth:v=>v, fontSize:v=>v, lineWidth:v=>v, openAngle:v=>v+'°', rotation:v=>v+'°', minSupport:v=>v};
   for(const k in ranges){ $(k).value=S[k]; $(k+'Val').textContent=ranges[k](S[k]); }
   $('rootPos').value=Math.round(S.rootPos*100); $('rootPosVal').textContent=Math.round(S.rootPos*100)+'%';
-  for(const id of ['showTipLabels','alignTips','showNodeDots','showScale','showBranchLen','showLegend','metaColorBranches','metaTipShapes']) $(id).checked=!!S[id];
+  for(const id of ['showTipLabels','alignTips','showNodeDots','showScale','smartLabels','showBranchLen','showLegend','metaColorBranches','metaTipShapes']) $(id).checked=!!S[id];
   $('nodeLabelField').value=S.nodeLabelField; if($('nodeLabelField').value!==S.nodeLabelField){ S.nodeLabelField=''; $('nodeLabelField').value=''; }
   $('branchColor').value=S.branchColor||getComputedStyle(document.documentElement).getPropertyValue('--branch').trim();
   $('hlColor').value=S.hlColor; $('paintColor').value=S.paintColor;
@@ -1535,7 +1602,7 @@ function svgToPdfOps(root, pageM, bgRGB){
         for(let i=0;i<n;i++) paint(node, {...s, fill:stops[i], stroke:null}, mm, pathOps(`M${x+w*i/n},${y}H${x+w*(i+1)/n+0.2}V${y+h}H${x+w*i/n}Z`, mm)); return; }
       paint(node, s, mm, pathOps(`M${x},${y}H${x+w}V${y+h}H${x}Z`, mm)); return; }
     if(tag==='text'){ const str=node.textContent; if(!str) return; const fill=s.fill===undefined?[0,0,0]:s.fill; if(!fill) return;
-      const fs=s.fontSize||12; let x=num('x'), y=num('y'); const w=textWidth(str, fs, s.bold);
+      const fs=s.fontSize||12; const lenA=n=>{ const v=a(n); if(v==null) return 0; const f=parseFloat(v); return isNaN(f)?0:(/em$/.test(v.trim())? f*fs : f); }; let x=lenA('x'), y=lenA('y'); const w=textWidth(str, fs, s.bold);
       if(s.anchor==='end') x-=w; else if(s.anchor==='middle') x-=w/2;
       if(s.baseline==='middle'||s.baseline==='central') y+=fs*0.35; else if(s.baseline==='hanging') y+=fs*0.8;
       const [ox,oy]=mApply(mm,x,y); const tm=[mm[0],mm[1],-mm[2],-mm[3],ox,oy].map(pdfNum).join(' ');

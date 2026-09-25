@@ -86,7 +86,7 @@ Open the viewer's web address or a share link on any phone, iPhone included, and
 The viewer adapts to small screens:
 
 - **Toolbar** at the bottom: Search, Fit, SNPs/Subs, Layout and Options.
-- **Pinch** to zoom and **drag** to move.
+- **Pinch** to zoom and **drag** to move. Names stay a readable size as you zoom in, and samples at the same spot are listed one under another.
 - **Tap a branch** to select a clade. The toolbar switches to Zoom, Color, Collapse, Rotate and Reroot.
 - **Tap a tip** to see its details.
 - **Options** opens every setting, plus Open file, Save PDF, Save HTML and Share link.
@@ -94,6 +94,9 @@ The viewer adapts to small screens:
 ---
 
 ## Common questions
+
+**Some names disappear when I zoom in.**
+When names would overlap, the viewer hides some until you zoom in further and there's room. Tap any tip to see its name. To always show every name, turn off **Readable zoom** under *Display*.
 
 **Does opening a share link, or tapping "Open interactive tree", send my tree anywhere?**
 No. Your tree stays on your device and is never uploaded. The link just opens the viewer. One tip: your browser remembers the links you visit, and some browsers copy that history to your Apple or Google account. For sensitive trees, use a private browser tab.
